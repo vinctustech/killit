@@ -11,7 +11,7 @@ import xyz.hyperreal.snutils.unistd._
 import scopt.OParser
 
 object Main extends App {
-  case class Config(port: Int)
+  case class Config(port: Int, verbose: Boolean)
 
   val builder = OParser.builder[Config]
 
@@ -20,30 +20,36 @@ object Main extends App {
 
     OParser.sequence(
       programName("killit"),
-      head("killit", "0.1.0"),
-      help("help").text("prints this usage text"),
+      head("killit", "v0.1.0"),
+      help('h', "help").text("prints this usage text"),
+      opt[Unit]('v', "verbose")
+        .action((_, c) => c.copy(verbose = true))
+        .text("print internal actions"),
+      version('V', "version").text("prints the version"),
       arg[Int]("<port>")
         .action((p, c) => c.copy(port = p))
         .text("port (tcp6) that the server is listening on")
     )
   }
 
-  OParser.parse(parser, args, Config(-1)) match {
-    case Some(config) => app(config.port)
+  OParser.parse(parser, args, Config(-1, false)) match {
+    case Some(config) => app(config.port, config.verbose)
     case _            =>
   }
 
-  def app(port: Int): Unit = {
-    val hport = port.formatted("%04x").toUpperCase
+  def app(port: Int, verbose: Boolean): Unit = {
+    def info(s: String): Unit =
+      if (verbose)
+        println(s)
 
+    val hport = port.formatted("%04x").toUpperCase
     val connections =
-      //    util.Using(io.Source.fromFile("/proc/net/tcp6"))(_.getLines filter (_ contains hport) map (_.split(" +")(9))) get
       io.Source
         .fromFile("/proc/net/tcp6")
         .getLines() map (_ split " +" toVector) filter (_(2) contains s":$hport") toList
 
-    println(s"TCP6 local address connections on port $port ($hport):")
-    println(connections map (c => s"  ${c(2)} ${c(4)} ${c(10)}") mkString "\n")
+    info(s"TCP6 local address connections on port $port ($hport):")
+    info(connections map (c => s"  ${c(2)} ${c(4)} ${c(10)}") mkString "\n")
 
     val linkRegex = "/proc/([0-9]+)/fd/[0-9]+ -> socket:\\[([0-9]+)]".r
 
@@ -51,26 +57,26 @@ object Main extends App {
       readLink(l).filter(_ startsWith "socket:").map(s => s"$l -> $s").toList
     } map { case linkRegex(pid, inode) => pid -> inode }
 
-    println(s"processes that are listening on $port:")
+    info(s"processes that are listening on $port:")
 
     val allpids =
       (for (c <- connections)
         yield {
-          println(s"  inode ${c(10)}:")
+          info(s"  inode ${c(10)}:")
 
           val pids = inodes filter { case (_, inode) => c(4) == "0A" && inode == c(10) } map { case (pid, _) => pid }
 
-          println(pids map (pid => s"    $pid") mkString "\n")
+          info(pids map (pid => s"    $pid") mkString "\n")
           pids
         }) flatten
 
     if (allpids.isEmpty)
-      println("can't find any processes to kill")
+      info("can't find any processes to kill")
     else {
-      println(s"killing ${allpids.length} process(es):")
+      info(s"killing ${allpids.length} process(es):")
 
       for (pid <- allpids)
-        println(s"  pid $pid... ${if (kill(pid.toInt, SIGKILL) == 0) "ok" else "failed"}")
+        info(s"  pid $pid... ${if (kill(pid.toInt, SIGKILL) == 0) "ok" else "failed"}")
     }
   }
 }
