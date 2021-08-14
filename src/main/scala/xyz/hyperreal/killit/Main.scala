@@ -1,9 +1,5 @@
 package xyz.hyperreal.killit
 
-import scala.scalanative.posix.unistd._
-import scala.scalanative.unsafe._
-import scala.scalanative.unsigned._
-
 import xyz.hyperreal.snutils.Globbing
 import xyz.hyperreal.snutils.signal._
 import xyz.hyperreal.snutils.unistd._
@@ -32,7 +28,7 @@ object Main extends App {
     )
   }
 
-  OParser.parse(parser, args, Config(-1, false)) match {
+  OParser.parse(parser, args, Config(-1, verbose = false)) match {
     case Some(config) => app(config.port, config.verbose)
     case _            =>
   }
@@ -44,9 +40,11 @@ object Main extends App {
 
     val hport = port.formatted("%04x").toUpperCase
     val connections =
-      io.Source
-        .fromFile("/proc/net/tcp6")
-        .getLines() map (_ split " +" toVector) filter (_(2) contains s":$hport") toList
+      util
+        .Using(
+          io.Source
+            .fromFile("/proc/net/tcp6"))(
+          _.getLines() map (_ split " +" toVector) filter (_(2) contains s":$hport") toList) get
 
     info(s"TCP6 local address connections on port $port ($hport):")
     info(connections map (c => s"  ${c(2)} ${c(4)} ${c(10)}") mkString "\n")
