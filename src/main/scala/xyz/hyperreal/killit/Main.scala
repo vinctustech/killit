@@ -7,7 +7,7 @@ import xyz.hyperreal.snutils.unistd._
 import scopt.OParser
 
 object Main extends App {
-  case class Config(port: Int, verbose: Boolean)
+  case class Config(port: Int, verbose: Boolean, test: Boolean)
 
   val builder = OParser.builder[Config]
 
@@ -18,6 +18,9 @@ object Main extends App {
       programName("killit"),
       head("killit", "v0.1.0"),
       help('h', "help").text("prints this usage text"),
+      opt[Unit]('t', "test")
+        .action((_, c) => c.copy(test = true))
+        .text("same as verbose but don't kill any processes"),
       opt[Unit]('v', "verbose")
         .action((_, c) => c.copy(verbose = true))
         .text("print internal actions"),
@@ -28,16 +31,17 @@ object Main extends App {
     )
   }
 
-  OParser.parse(parser, args, Config(-1, verbose = false)) match {
-    case Some(config) => app(config.port, config.verbose)
+  OParser.parse(parser, args, Config(-1, verbose = false, test = false)) match {
+    case Some(config) => app(config)
     case _            =>
   }
 
-  def app(port: Int, verbose: Boolean): Unit = {
+  def app(conf: Config): Unit = {
     def info(s: String): Unit =
-      if (verbose)
+      if (conf.verbose || conf.test)
         println(s)
 
+    val port  = conf.port
     val hport = port.formatted("%04x").toUpperCase
     val connections =
       util
@@ -71,10 +75,14 @@ object Main extends App {
     if (allpids.isEmpty)
       info("can't find any processes to kill")
     else {
-      info(s"killing ${allpids.length} process(es):")
+      if (conf.test)
+        info(s"would kill ${allpids.length} process(es) with pid(s): ${allpids mkString ", "}")
+      else
+        info(s"killing ${allpids.length} process(es):")
 
-      for (pid <- allpids)
-        info(s"  pid $pid... ${if (kill(pid.toInt, SIGKILL) == 0) "ok" else "failed"}")
+      if (!conf.test)
+        for (pid <- allpids)
+          info(s"  pid $pid... ${if (kill(pid.toInt, SIGKILL) == 0) "ok" else "failed"}")
     }
   }
 }
