@@ -8,11 +8,15 @@ Installation
 
 Install it by downloading the file `killit` from the repository.  Then make it executable:
 
-```chmod a+x killit```
+```sh
+chmod a+x killit
+```
 
 and copy it to where it can be found in your path:
 
-```sudo cp killit /usr/bin```
+```bash
+sudo cp killit /usr/bin
+```
 
 Usage
 -----
