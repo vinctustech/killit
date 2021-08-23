@@ -53,11 +53,11 @@ object Main extends App {
     info(s"TCP6 local address connections on port $port ($hport):")
     info(connections map (c => s"  ${c(2)} ${c(4)} ${c(10)}") mkString "\n")
 
-    val linkRegex = "/proc/([0-9]+)/fd/[0-9]+ -> socket:\\[([0-9]+)]".r
+    val linkRegex = "/proc/([^/]+)/fd/[0-9]+ socket:\\[([0-9]+)]".r
 
     val inodes = Globbing.expand("/proc/*/fd/*") flatMap { l =>
-      readLink(l).filter(_ startsWith "socket:").map(s => s"$l -> $s").toList
-    } map { case linkRegex(pid, inode) => pid -> inode }
+      readLink(l).filter(_ startsWith "socket:").map(s => s"$l $s").toList
+    } map { case linkRegex(pid, inode) => pid -> inode } filter { case (pid, _) => pid forall (_.isDigit) }
 
     info(s"processes that are listening on $port:")
 
@@ -66,7 +66,9 @@ object Main extends App {
         yield {
           info(s"  inode ${c(10)}:")
 
-          val pids = inodes filter { case (_, inode) => c(4) == "0A" && inode == c(10) } map { case (pid, _) => pid }
+          val pids = inodes filter {
+            case (_, inode)     => c(4) == "0A" && inode == c(10)
+          } map { case (pid, _) => pid }
 
           info(pids map (pid => s"    $pid") mkString "\n")
           pids
