@@ -43,12 +43,19 @@ object Main extends App {
 
     val port  = conf.port
     val hport = port.formatted("%04x").toUpperCase
-    val connections =
+    val connectionsTCP =
+      util
+        .Using(
+          io.Source
+            .fromFile("/proc/net/tcp"))(
+          _.getLines() map (_ split " +" toVector) filter (_(2) contains s":$hport") toList) get
+    val connectionsTCP6 =
       util
         .Using(
           io.Source
             .fromFile("/proc/net/tcp6"))(
           _.getLines() map (_ split " +" toVector) filter (_(2) contains s":$hport") toList) get
+    val connections = connectionsTCP ++ connectionsTCP6
 
     info(s"TCP6 local address connections on port $port ($hport):")
     info(connections map (c => s"  ${c(2)} ${c(4)} ${c(10)}") mkString "\n")
